@@ -118,7 +118,9 @@ async function 启动传输管道(WS接口, 反代IP) {
 		TCP接口.readable.pipeTo(
 			new WritableStream({
 				write(chunk) {
-					WS接口.send(chunk);
+					if (WS接口.readyState === 1) {
+						WS接口.send(chunk);
+					}
 				},
 			}),
 		);
