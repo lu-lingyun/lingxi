@@ -1,6 +1,10 @@
-import { connect } from 'cloudflare:sockets';
+import {
+	connect
+} from 'cloudflare:sockets';
 
-const 转换密钥格式 = Array.from({ length: 256 }, (_, i) => (i + 256).toString(16).slice(1));
+const 转换密钥格式 = Array.from({
+	length: 256
+}, (_, i) => (i + 256).toString(16).slice(1));
 let 哎呀呀这是我的VL密钥 = '25284107-7424-40a5-8396-cdd0623f4f05';
 
 export default {
@@ -11,7 +15,9 @@ export default {
 			const 反代IP = url.searchParams.get('ip') || '';
 			return await 升级WS请求(反代IP);
 		}
-		return new Response('Not found', { status: 404 });
+		return new Response('Not found', {
+			status: 404
+		});
 	},
 };
 
@@ -19,25 +25,29 @@ async function 升级WS请求(反代IP) {
 	const [客户端, WS接口] = Object.values(new WebSocketPair());
 	WS接口.accept();
 	WS接口.binaryType = 'arraybuffer';
-	
 	WS接口.send(new Uint8Array([0, 0]));
 	启动传输管道(WS接口, 反代IP);
-	return new Response(null, { status: 101, webSocket: 客户端 });
+	return new Response(null, {
+		status: 101,
+		webSocket: 客户端
+	});
 }
 
 async function 启动传输管道(WS接口, 反代IP) {
 	let TCP接口;
 	let 首包数据 = true;
+	let 处理队列 = Promise.resolve();
 	let 传输数据;
 
-	WS接口.addEventListener('message', async (event) => {
-		if (首包数据) {
-			首包数据 = false;
-			await 解析VL标头(event.data);
-		} else if (传输数据) {
-			
-			await 传输数据.write(event.data);
-		}
+	WS接口.addEventListener('message', (event) => {
+		处理队列 = 处理队列.then(async () => {
+			if (首包数据) {
+				首包数据 = false;
+				await 解析VL标头(event.data);
+			} else {
+				await 传输数据.write(event.data);
+			}
+		});
 	});
 
 	async function 解析VL标头(VL数据) {
@@ -78,13 +88,19 @@ async function 启动传输管道(WS接口, 反代IP) {
 		}
 		const 写入初始数据 = VL数据.slice(地址信息索引 + 地址长度);
 		try {
-			TCP接口 = connect({ hostname: 访问地址, port: 访问端口 });
+			TCP接口 = connect({
+				hostname: 访问地址,
+				port: 访问端口
+			});
 			await TCP接口.opened;
 		} catch {
 			const [反代IP地址, 反代IP端口 = 访问端口] = 反代IP.split(':');
-			TCP接口 = connect({ hostname: 反代IP地址, port: 反代IP端口 });
+			TCP接口 = connect({
+				hostname: 反代IP地址,
+				port: 反代IP端口
+			});
 		}
-		建立传输管道(写入初始数据, 访问地址, 访问端口);
+		建立传输管道(写入初始数据);
 	}
 
 	function 验证VL的密钥(arr, offset = 0) {
@@ -92,21 +108,17 @@ async function 启动传输管道(WS接口, 反代IP) {
 		return uuid;
 	}
 
-	async function 建立传输管道(写入初始数据, 访问地址, 访问端口) {
+	async function 建立传输管道(写入初始数据) {
 		传输数据 = TCP接口.writable.getWriter();
-		
-		
+
 		if (写入初始数据 && 写入初始数据.byteLength > 0) {
 			await 传输数据.write(写入初始数据);
 		}
-		
-		
+
 		TCP接口.readable.pipeTo(
 			new WritableStream({
 				write(chunk) {
-					if (WS接口.readyState === 1) {
-						WS接口.send(chunk);
-					}
+					WS接口.send(chunk);
 				},
 			}),
 		);
